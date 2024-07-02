@@ -10,8 +10,8 @@
     <p>企画者: daizu007</p>
     <p>コーディング: claude3.5sonnet</p>
     
-    <p><a href="安定版">https://daizu-007.github.io/Testing-the-Genetic-Algorithm/1</a></p>
+    <p><a href="https://daizu-007.github.io/Testing-the-Genetic-Algorithm/1">安定版</a></p>
     
-    <p><a href="最新版">https://daizu-007.github.io/Testing-the-Genetic-Algorithm/2</a></p>
+    <p><a href="https://daizu-007.github.io/Testing-the-Genetic-Algorithm/2">最新版</a></p>
 </body>
 </html>

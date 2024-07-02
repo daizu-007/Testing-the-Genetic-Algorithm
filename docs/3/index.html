@@ -68,21 +68,21 @@
             };
 
             const generateRandomImage = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = IMAGE_SIZE;
-                canvas.height = IMAGE_SIZE;
-                const ctx = canvas.getContext('2d');
-                const imageData = ctx.createImageData(IMAGE_SIZE, IMAGE_SIZE);
+            const canvas = document.createElement('canvas');
+            canvas.width = IMAGE_SIZE;
+            canvas.height = IMAGE_SIZE;
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.createImageData(IMAGE_SIZE, IMAGE_SIZE);
 
-                for (let i = 0; i < imageData.data.length; i += 4) {
-                    imageData.data[i] = Math.floor(Math.random() * 256);
-                    imageData.data[i + 1] = Math.floor(Math.random() * 256);
-                    imageData.data[i + 2] = Math.floor(Math.random() * 256);
-                    imageData.data[i + 3] = 255;
-                }
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                imageData.data[i] = Math.floor(Math.random() * 256);
+                imageData.data[i + 1] = Math.floor(Math.random() * 256);
+                imageData.data[i + 2] = Math.floor(Math.random() * 256);
+                imageData.data[i + 3] = 255;
+            }
 
-                ctx.putImageData(imageData, 0, 0);
-                return canvas;
+            ctx.putImageData(imageData, 0, 0);
+            return canvas;
             };
 
             const mutateImage = (baseImage) => {
@@ -171,25 +171,25 @@
             }, [images, referenceImage, calculateImageSimilarity]);
 
             const evolvePopulation = async () => {
-                const [parent1Index, parent2Index] = selectParents();
-                const parent1 = images[parent1Index];
-                const parent2 = images[parent2Index];
+            const [parent1Index, parent2Index] = selectParents();
+            const parent1 = images[parent1Index];
+            const parent2 = images[parent2Index];
 
-                let offspring;
-                if (Math.random() < settings.crossoverRate) {
-                    offspring = crossoverImages(parent1, parent2);
-                } else {
-                    offspring = Math.random() < 0.5 ? parent1.cloneNode() : parent2.cloneNode();
-                }
+            let offspring;
+            if (Math.random() < settings.crossoverRate) {
+                offspring = crossoverImages(parent1, parent2);
+            } else {
+                offspring = Math.random() < 0.5 ? parent1 : parent2;
+            }
 
-                const mutatedOffspring = mutateImage(offspring);
+            const mutatedOffspring = mutateImage(offspring);
 
-                const newImages = [...images];
-                const replacementIndex = Math.floor(Math.random() * images.length);
-                newImages[replacementIndex] = mutatedOffspring;
+            const newImages = [...images];
+            const replacementIndex = Math.floor(Math.random() * images.length);
+            newImages[replacementIndex] = mutatedOffspring;
 
-                setImages(newImages);
-                setGeneration(prev => prev + 1);
+            setImages(newImages);
+            setGeneration(prev => prev + 1);
             };
 
             const handleReferenceImageUpload = (event) => {
@@ -213,11 +213,8 @@
             };
 
             const getImageUrl = (canvas) => {
-                const key = canvas.toDataURL();
-                if (!imageDataCache.current[key]) {
-                    imageDataCache.current[key] = canvas.toDataURL();
-                }
-                return imageDataCache.current[key];
+            if (!canvas) return '';
+            return canvas.toDataURL();
             };
 
             return (

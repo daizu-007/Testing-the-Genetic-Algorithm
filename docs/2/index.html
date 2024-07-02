@@ -81,16 +81,38 @@ async function crossoverImages(img1, img2) {
   canvas.height = settings.imageSize;
   const ctx = canvas.getContext('2d');
   const [image1, image2] = await Promise.all([createImageBitmap(img1), createImageBitmap(img2)]);
-  const split = Math.random() * settings.imageSize;
-  if (Math.random() < 0.5) {
-    ctx.drawImage(image1, 0, 0, settings.imageSize, split, 0, 0, settings.imageSize, split);
-    ctx.drawImage(image2, 0, split, settings.imageSize, settings.imageSize - split, 0, split, settings.imageSize, settings.imageSize - split);
-  } else {
-    ctx.drawImage(image1, 0, 0, split, settings.imageSize, 0, 0, split, settings.imageSize);
-    ctx.drawImage(image2, split, 0, settings.imageSize - split, settings.imageSize, split, 0, settings.imageSize - split, settings.imageSize);
+  const imageData1 = ctx.createImageData(settings.imageSize, settings.imageSize);
+  const imageData2 = ctx.createImageData(settings.imageSize, settings.imageSize);
+  const imageDataResult = ctx.createImageData(settings.imageSize, settings.imageSize);
+  
+  ctx.drawImage(image1, 0, 0);
+  imageData1.data.set(ctx.getImageData(0, 0, settings.imageSize, settings.imageSize).data);
+  
+  ctx.drawImage(image2, 0, 0);
+  imageData2.data.set(ctx.getImageData(0, 0, settings.imageSize, settings.imageSize).data);
+  
+  const crossoverRate = 0.5; // ピクセルごとの交差率
+  
+  for (let i = 0; i < imageDataResult.data.length; i += 4) {
+    if (Math.random() < crossoverRate) {
+      // 画像1のピクセルをコピー
+      imageDataResult.data[i] = imageData1.data[i];       // R
+      imageDataResult.data[i + 1] = imageData1.data[i + 1]; // G
+      imageDataResult.data[i + 2] = imageData1.data[i + 2]; // B
+      imageDataResult.data[i + 3] = imageData1.data[i + 3]; // A
+    } else {
+      // 画像2のピクセルをコピー
+      imageDataResult.data[i] = imageData2.data[i];       // R
+      imageDataResult.data[i + 1] = imageData2.data[i + 1]; // G
+      imageDataResult.data[i + 2] = imageData2.data[i + 2]; // B
+      imageDataResult.data[i + 3] = imageData2.data[i + 3]; // A
+    }
   }
+  
+  ctx.putImageData(imageDataResult, 0, 0);
   return canvas;
 }
+
 
 async function mutateImage(baseImage) {
   const canvas = document.createElement('canvas');

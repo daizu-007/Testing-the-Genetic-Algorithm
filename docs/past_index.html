@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genetic Algorithm Image Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        #imageContainer {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        #imageContainer img {
+            width: 100%;
+            height: auto;
+            border: 2px solid #ddd;
+            cursor: pointer;
+        }
+        #imageContainer img:hover {
+            border-color: #007bff;
+        }
+        #controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        #referenceImage {
+            max-width: 100px;
+            max-height: 100px;
+            margin-top: 10px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body>
+    <h1>Genetic Algorithm Image Generator (64x64)</h1>
+    <p>Generation: <span id="generation">0</span></p>
+    <div id="imageContainer"></div>
+    <div id="controls">
+        <input type="file" accept="image/*" id="referenceImageUpload">
+        <div>
+            <label class="switch">
+                <input type="checkbox" id="autoMode">
+                <span class="slider"></span>
+            </label>
+            <span>Auto Mode</span>
+        </div>
+        <button id="generateButton">Generate New Image Set</button>
+    </div>
+    <img id="referenceImage" style="display: none;">
+    <canvas id="canvas" style="display: none;"></canvas>
+
+    <script>
+        const IMAGE_SIZE = 64;
+        const MUTATION_RATE = 0.01; // 変異率
+        const NUM_SHAPES = 5000; // 図形の数
+        const MAX_SHAPE_SIZE = 7; // 図形の最大サイズ
+
+        let images = [];
+        let generation = 0;
+        let autoMode = false;
+        let referenceImage = null;
+
+        const imageContainer = document.getElementById('imageContainer');
+        const generationSpan = document.getElementById('generation');
+        const autoModeCheckbox = document.getElementById('autoMode');
+        const generateButton = document.getElementById('generateButton');
+        const referenceImageUpload = document.getElementById('referenceImageUpload');
+        const referenceImageElement = document.getElementById('referenceImage');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = canvas.height = IMAGE_SIZE;
+
+        function generateRandomShape() {
+            const types = ['circle', 'rectangle', 'triangle'];
+            return {
+                type: types[Math.floor(Math.random() * types.length)],
+                x: Math.random() * IMAGE_SIZE,
+                y: Math.random() * IMAGE_SIZE,
+                size: Math.random() * MAX_SHAPE_SIZE + 1, // サイズを1~MAX_SHAPE_SIZEの範囲に制限
+                color: `rgba(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255},${Math.random() * 0.5 + 0.5})`, // 透明度を追加
+            };
+        }
+
+        function renderShapesToCanvas(shapes) {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, IMAGE_SIZE, IMAGE_SIZE);
+
+            shapes.forEach(shape => {
+                ctx.fillStyle = shape.color;
+                ctx.beginPath();
+                switch (shape.type) {
+                    case 'circle':
+                        ctx.arc(shape.x, shape.y, shape.size / 2, 0, Math.PI * 2);
+                        break;
+                    case 'rectangle':
+                        ctx.rect(shape.x, shape.y, shape.size, shape.size);
+                        break;
+                    case 'triangle':
+                        ctx.moveTo(shape.x, shape.y);
+                        ctx.lineTo(shape.x + shape.size / 2, shape.y + shape.size);
+                        ctx.lineTo(shape.x - shape.size / 2, shape.y + shape.size);
+                        break;
+                }
+                ctx.fill();
+            });
+
+            return canvas.toDataURL();
+        }
+
+        function generateRandomImage() {
+            const shapes = Array(NUM_SHAPES).fill(0).map(() => generateRandomShape());
+            return renderShapesToCanvas(shapes);
+        }
+
+        function generateInitialImages() {
+            images = Array(4).fill(0).map(() => generateRandomImage());
+            generation = 0;
+            updateUI();
+        }
+
+        function mutateImage(baseImage) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE);
+                    const shapes = extractShapesFromImageData(imageData);
+                    
+                    const mutatedShapes = shapes.map(shape => 
+                        Math.random() < MUTATION_RATE ? generateRandomShape() : shape
+                    );
+
+                    resolve(renderShapesToCanvas(mutatedShapes));
+                };
+                img.src = baseImage;
+            });
+        }
+
+        function extractShapesFromImageData(imageData) {
+            const shapes = [];
+            for (let i = 0; i < NUM_SHAPES; i++) {
+                const x = Math.floor(Math.random() * IMAGE_SIZE);
+                const y = Math.floor(Math.random() * IMAGE_SIZE);
+                const index = (y * IMAGE_SIZE + x) * 4;
+                shapes.push({
+                    type: 'circle',
+                    x,
+                    y,
+                    size: Math.random() * MAX_SHAPE_SIZE + 1,
+                    color: `rgba(${imageData.data[index]},${imageData.data[index+1]},${imageData.data[index+2]},${Math.random() * 0.5 + 0.5})`,
+                });
+            }
+            return shapes;
+        }
+
+        async function handleImageSelect(index) {
+            const baseImage = images[index];
+            const mutatedImages = await Promise.all([
+                mutateImage(baseImage),
+                mutateImage(baseImage),
+                mutateImage(baseImage),
+            ]);
+            images = [baseImage, ...mutatedImages];
+            generation++;
+            updateUI();
+        }
+
+        function updateUI() {
+            imageContainer.innerHTML = '';
+            images.forEach((image, index) => {
+                const img = document.createElement('img');
+                img.src = image;
+                img.alt = `Generated Image ${index + 1}`;
+                img.onclick = () => !autoMode && handleImageSelect(index);
+                imageContainer.appendChild(img);
+            });
+            generationSpan.textContent = generation;
+        }
+
+        function calculateImageSimilarity(img1, img2) {
+            return new Promise((resolve) => {
+                const image1 = new Image();
+                const image2 = new Image();
+                
+                image1.onload = () => {
+                    ctx.drawImage(image1, 0, 0);
+                    const imageData1 = ctx.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE);
+                    
+                    image2.onload = () => {
+                        ctx.drawImage(image2, 0, 0);
+                        const imageData2 = ctx.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE);
+                        
+                        let diff = 0;
+                        for (let i = 0; i < imageData1.data.length; i += 4) {
+                            diff += Math.abs(imageData1.data[i] - imageData2.data[i]);
+                            diff += Math.abs(imageData1.data[i+1] - imageData2.data[i+1]);
+                            diff += Math.abs(imageData1.data[i+2] - imageData2.data[i+2]);
+                        }
+                        resolve(diff);
+                    };
+                    
+                    image2.src = img2;
+                };
+                
+                image1.src = img1;
+            });
+        }
+
+        async function findBestMatch() {
+            if (!referenceImage) return 0;
+            const similarities = await Promise.all(
+                images.map(img => calculateImageSimilarity(referenceImage, img))
+            );
+            return similarities.indexOf(Math.min(...similarities));
+        }
+
+        async function runAutoMode() {
+            if (!autoMode || !referenceImage) return;
+
+            const bestMatchIndex = await findBestMatch();
+            await handleImageSelect(bestMatchIndex);
+            
+            if (autoMode) {
+                requestAnimationFrame(runAutoMode);
+            }
+        }
+
+        generateButton.onclick = generateInitialImages;
+
+        autoModeCheckbox.onchange = (e) => {
+            autoMode = e.target.checked;
+            generateButton.disabled = autoMode;
+            if (autoMode && referenceImage) {
+                runAutoMode();
+            }
+        };
+
+        referenceImageUpload.onchange = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0, IMAGE_SIZE, IMAGE_SIZE);
+                        referenceImage = canvas.toDataURL();
+                        referenceImageElement.src = referenceImage;
+                        referenceImageElement.style.display = 'block';
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        generateInitialImages();
+    </script>
+</body>
+</html>

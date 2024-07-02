@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>遺伝的アルゴリズム画像生成器 (64x64)</title>
+    <title>遺伝的アルゴリズム画像生成器</title>
     <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
@@ -28,7 +28,7 @@
                 crossoverRate: CROSSOVER_RATE,
             });
 
-            const canvasRefs = React.useRef([]);
+            const imageDataCache = React.useRef({});
 
             React.useEffect(() => {
                 generateInitialImages();
@@ -42,11 +42,10 @@
 
                     isRunning = true;
                     try {
-                        const [parent1Index, parent2Index] = await findBestPair();
-                        await handleImageSelect(parent1Index, parent2Index);
+                        await evolvePopulation();
                         
                         if (autoMode) {
-                            setTimeout(runAutoMode, 0);
+                            requestAnimationFrame(runAutoMode);
                         }
                     } finally {
                         isRunning = false;
@@ -63,69 +62,131 @@
             }, [autoMode, referenceImage, images]);
 
             const generateInitialImages = () => {
-                const newImages = Array(settings.populationSize).fill().map(() => generateRandomImageData());
+                const newImages = Array(settings.populationSize).fill().map(() => generateRandomImage());
                 setImages(newImages);
                 setGeneration(0);
             };
 
-            const generateRandomImageData = () => {
-                const imageData = new ImageData(IMAGE_SIZE, IMAGE_SIZE);
+            const generateRandomImage = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = IMAGE_SIZE;
+                canvas.height = IMAGE_SIZE;
+                const ctx = canvas.getContext('2d');
+                const imageData = ctx.createImageData(IMAGE_SIZE, IMAGE_SIZE);
+
                 for (let i = 0; i < imageData.data.length; i += 4) {
                     imageData.data[i] = Math.floor(Math.random() * 256);
                     imageData.data[i + 1] = Math.floor(Math.random() * 256);
                     imageData.data[i + 2] = Math.floor(Math.random() * 256);
                     imageData.data[i + 3] = 255;
                 }
-                return imageData;
+
+                ctx.putImageData(imageData, 0, 0);
+                return canvas;
             };
 
-            const mutateImageData = (baseImageData) => {
-                const newImageData = new ImageData(
-                    new Uint8ClampedArray(baseImageData.data),
-                    IMAGE_SIZE,
-                    IMAGE_SIZE
-                );
+            const mutateImage = (baseImage) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = IMAGE_SIZE;
+                canvas.height = IMAGE_SIZE;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(baseImage, 0, 0);
+                const imageData = ctx.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE);
+
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    if (Math.random() < settings.mutationRate) {
+                        imageData.data[i] = Math.floor(Math.random() * 256);
+                        imageData.data[i + 1] = Math.floor(Math.random() * 256);
+                        imageData.data[i + 2] = Math.floor(Math.random() * 256);
+                    }
+                }
+
+                ctx.putImageData(imageData, 0, 0);
+                return canvas;
+            };
+
+            const crossoverImages = (parent1, parent2) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = IMAGE_SIZE;
+                canvas.height = IMAGE_SIZE;
+                const ctx = canvas.getContext('2d');
+
+                const img1 = parent1;
+                const img2 = parent2;
+
+                ctx.drawImage(img1, 0, 0);
+                const imageData1 = ctx.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE);
+                ctx.drawImage(img2, 0, 0);
+                const imageData2 = ctx.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE);
+
+                const newImageData = ctx.createImageData(IMAGE_SIZE, IMAGE_SIZE);
 
                 for (let i = 0; i < newImageData.data.length; i += 4) {
-                    if (Math.random() < settings.mutationRate) {
-                        newImageData.data[i] = Math.floor(Math.random() * 256);
-                        newImageData.data[i + 1] = Math.floor(Math.random() * 256);
-                        newImageData.data[i + 2] = Math.floor(Math.random() * 256);
-                    }
-                }
-
-                return newImageData;
-            };
-
-            const crossoverImageData = (parent1Data, parent2Data) => {
-                const childData = new ImageData(IMAGE_SIZE, IMAGE_SIZE);
-                const crossoverPoint = Math.floor(Math.random() * parent1Data.data.length);
-
-                for (let i = 0; i < childData.data.length; i += 4) {
-                    if (i < crossoverPoint || Math.random() > settings.crossoverRate) {
-                        childData.data[i] = parent1Data.data[i];
-                        childData.data[i + 1] = parent1Data.data[i + 1];
-                        childData.data[i + 2] = parent1Data.data[i + 2];
+                    if (Math.random() < 0.5) {
+                        newImageData.data[i] = imageData1.data[i];
+                        newImageData.data[i + 1] = imageData1.data[i + 1];
+                        newImageData.data[i + 2] = imageData1.data[i + 2];
+                        newImageData.data[i + 3] = 255;
                     } else {
-                        childData.data[i] = parent2Data.data[i];
-                        childData.data[i + 1] = parent2Data.data[i + 1];
-                        childData.data[i + 2] = parent2Data.data[i + 2];
+                        newImageData.data[i] = imageData2.data[i];
+                        newImageData.data[i + 1] = imageData2.data[i + 1];
+                        newImageData.data[i + 2] = imageData2.data[i + 2];
+                        newImageData.data[i + 3] = 255;
                     }
-                    childData.data[i + 3] = 255;
                 }
 
-                return childData;
+                ctx.putImageData(newImageData, 0, 0);
+                return canvas;
             };
 
-            const handleImageSelect = async (index1, index2) => {
-                const parent1 = images[index1];
-                const parent2 = images[index2];
-                const child = crossoverImageData(parent1, parent2);
-                const mutatedChild = mutateImageData(child);
+            const calculateImageSimilarity = React.useCallback((img1, img2) => {
+                const ctx1 = img1.getContext('2d');
+                const ctx2 = img2.getContext('2d');
+                const imageData1 = ctx1.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE);
+                const imageData2 = ctx2.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE);
+                let diff = 0;
+                for (let i = 0; i < imageData1.data.length; i += 4) {
+                    diff += Math.abs(imageData1.data[i] - imageData2.data[i]);
+                    diff += Math.abs(imageData1.data[i+1] - imageData2.data[i+1]);
+                    diff += Math.abs(imageData1.data[i+2] - imageData2.data[i+2]);
+                }
+                return diff;
+            }, []);
+
+            const selectParents = React.useCallback(() => {
+                if (!referenceImage) return [0, 1];
+
+                const similarities = images.map(img => calculateImageSimilarity(referenceImage, img));
+                const sortedIndices = similarities.map((_, i) => i).sort((a, b) => similarities[a] - similarities[b]);
+
+                // Selection methods
+                const bestFitness = () => sortedIndices[0];
+                const tournamentSelection = () => {
+                    const tournamentSize = 3;
+                    const tournament = Array(tournamentSize).fill().map(() => Math.floor(Math.random() * images.length));
+                    return tournament.reduce((best, current) => similarities[current] < similarities[best] ? current : best);
+                };
+
+                return [bestFitness(), tournamentSelection()];
+            }, [images, referenceImage, calculateImageSimilarity]);
+
+            const evolvePopulation = async () => {
+                const [parent1Index, parent2Index] = selectParents();
+                const parent1 = images[parent1Index];
+                const parent2 = images[parent2Index];
+
+                let offspring;
+                if (Math.random() < settings.crossoverRate) {
+                    offspring = crossoverImages(parent1, parent2);
+                } else {
+                    offspring = Math.random() < 0.5 ? parent1.cloneNode() : parent2.cloneNode();
+                }
+
+                const mutatedOffspring = mutateImage(offspring);
 
                 const newImages = [...images];
-                newImages[index1] = mutatedChild;
-                newImages[index2] = generateRandomImageData(); // 多様性維持のため
+                const replacementIndex = Math.floor(Math.random() * images.length);
+                newImages[replacementIndex] = mutatedOffspring;
 
                 setImages(newImages);
                 setGeneration(prev => prev + 1);
@@ -143,7 +204,7 @@
                             canvas.height = IMAGE_SIZE;
                             const ctx = canvas.getContext('2d');
                             ctx.drawImage(img, 0, 0, IMAGE_SIZE, IMAGE_SIZE);
-                            setReferenceImage(ctx.getImageData(0, 0, IMAGE_SIZE, IMAGE_SIZE));
+                            setReferenceImage(canvas);
                         };
                         img.src = e.target.result;
                     };
@@ -151,49 +212,12 @@
                 }
             };
 
-            const calculateImageSimilarity = React.useCallback((imageData1, imageData2) => {
-                let diff = 0;
-                for (let i = 0; i < imageData1.data.length; i += 4) {
-                    diff += Math.abs(imageData1.data[i] - imageData2.data[i]);
-                    diff += Math.abs(imageData1.data[i+1] - imageData2.data[i+1]);
-                    diff += Math.abs(imageData1.data[i+2] - imageData2.data[i+2]);
+            const getImageUrl = (canvas) => {
+                const key = canvas.toDataURL();
+                if (!imageDataCache.current[key]) {
+                    imageDataCache.current[key] = canvas.toDataURL();
                 }
-                return diff;
-            }, []);
-
-            const findBestPair = React.useCallback(async () => {
-                if (!referenceImage) return [0, 1];
-
-                const similarities = images.map(img => calculateImageSimilarity(referenceImage, img));
-                const sortedIndices = similarities.map((_, i) => i).sort((a, b) => similarities[a] - similarities[b]);
-
-                // 最も似ている画像と、ランダムに選んだ画像をペアにする
-                return [sortedIndices[0], Math.floor(Math.random() * images.length)];
-            }, [images, referenceImage, calculateImageSimilarity]);
-
-            const renderImage = (imageData, index) => {
-                const canvasRef = React.useRef(null);
-
-                React.useEffect(() => {
-                    const canvas = canvasRef.current;
-                    const ctx = canvas.getContext('2d');
-                    ctx.putImageData(imageData, 0, 0);
-                }, [imageData]);
-
-                return (
-                    <canvas
-                        ref={canvasRef}
-                        width={IMAGE_SIZE}
-                        height={IMAGE_SIZE}
-                        className="w-32 h-32 cursor-pointer border-2 hover:border-blue-500"
-                        style={{imageRendering: 'pixelated'}}
-                        onClick={() => !autoMode && handleImageSelect(index, (index + 1) % images.length)}
-                    />
-                );
-            };
-
-            const handleSettingChange = (key, value) => {
-                setSettings(prev => ({ ...prev, [key]: value }));
+                return imageDataCache.current[key];
             };
 
             return (
@@ -202,23 +226,22 @@
                     <p className="mb-4">世代: {generation}</p>
                     <div className="grid grid-cols-3 gap-4 mb-4">
                         {images.map((image, index) => (
-                            <div key={index}>
-                                {renderImage(image, index)}
-                            </div>
+                            <img
+                                key={index}
+                                src={getImageUrl(image)}
+                                alt={`Generated Image ${index + 1}`}
+                                className="w-32 h-32 cursor-pointer border-2 hover:border-blue-500"
+                                style={{imageRendering: 'pixelated'}}
+                            />
                         ))}
                     </div>
                     <div className="mb-4">
                         <input type="file" accept="image/*" onChange={handleReferenceImageUpload} className="mb-2" />
                         {referenceImage && (
-                            <canvas
-                                ref={el => {
-                                    if (el) {
-                                        el.getContext('2d').putImageData(referenceImage, 0, 0);
-                                    }
-                                }}
-                                width={IMAGE_SIZE}
-                                height={IMAGE_SIZE}
-                                className="w-32 h-32 object-cover"
+                            <img 
+                                src={getImageUrl(referenceImage)}
+                                alt="Reference Image" 
+                                className="w-32 h-32 object-cover" 
                                 style={{imageRendering: 'pixelated'}}
                             />
                         )}
@@ -228,59 +251,60 @@
                             type="checkbox"
                             id="auto-mode"
                             checked={autoMode}
-                            onChange={e => setAutoMode(e.target.checked)}
+                            onChange={(e) => setAutoMode(e.target.checked)}
                         />
                         <label htmlFor="auto-mode">自動モード</label>
                     </div>
-                    <button
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2"
+                    <button 
                         onClick={generateInitialImages}
+                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2"
                         disabled={autoMode}
                     >
                         新しい画像セットを生成
                     </button>
-                    <button
-                        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded"
+                    <button 
                         onClick={() => setShowSettings(!showSettings)}
+                        className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
                     >
                         {showSettings ? '設定を隠す' : '設定を表示'}
                     </button>
                     {showSettings && (
                         <div className="mt-4 p-4 border rounded">
-                            <h2 className="text-xl font-bold mb-2">詳細設定</h2>
+                            <h2 className="text-xl font-bold mb-2">設定</h2>
                             <div className="mb-2">
-                                <label className="block">集団サイズ:</label>
+                                <label htmlFor="populationSize" className="block">集団サイズ:</label>
                                 <input
                                     type="number"
+                                    id="populationSize"
                                     value={settings.populationSize}
-                                    onChange={e => handleSettingChange('populationSize', parseInt(e.target.value))}
+                                    onChange={(e) => setSettings({...settings, populationSize: parseInt(e.target.value)})}
                                     className="border rounded px-2 py-1"
-                                    min="2"
-                                    max="18"
                                 />
                             </div>
                             <div className="mb-2">
-                                <label className="block">突然変異率:</label>
+                                <label htmlFor="mutationRate" className="block">突然変異率:</label>
                                 <input
                                     type="number"
+                                    id="mutationRate"
                                     value={settings.mutationRate}
-                                    onChange={e => handleSettingChange('mutationRate', parseFloat(e.target.value))}
-                                    className="border rounded px-2 py-1"
+                                    onChange={(e) => setSettings({...settings, mutationRate: parseFloat(e.target.value)})}
                                     step="0.01"
                                     min="0"
                                     max="1"
+                                    className="border rounded px-2 py-1"
                                 />
                             </div>
                             <div className="mb-2">
-                                <label className="block">交叉率:</label>
+                                <label htmlFor="crossoverRate" className="block">交叉率:</label>
                                 <input
                                     type="number"
+                                    id="crossoverRate"
                                     value={settings.crossoverRate}
-                                    onChange={e => handleSettingChange('crossoverRate', parseFloat(e.target.value))}
-                                    className="border rounded px-2 py-1"
+                                    onChange={(e) => setSettings({...settings, crossoverRate: parseFloat(e.target.value)})}
                                     step="0.01"
                                     min="0"
                                     max="1"
+                                    className="border rounded px-2 py-1"
                                 />
                             </div>
                         </div>

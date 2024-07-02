@@ -59,16 +59,16 @@ function generateRandomImage() {
     ctx.fillStyle = `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
     if (Math.random() < 0.5) {
       const r = Math.random() * (SIZE / 4) + 5;
-      const x = Math.random() * SIZE;
-      const y = Math.random() * SIZE;
+      const x = Math.random() * settings.imageSize;
+      const y = Math.random() * settings.imageSize;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, 2 * Math.PI);
       ctx.fill();
     } else {
       const w = Math.random() * (SIZE / 2) + 10;
       const h = Math.random() * (SIZE / 2) + 10;
-      const x = Math.random() * (SIZE - w);
-      const y = Math.random() * (SIZE - h);
+      const x = Math.random() * (settings.imageSize - w);
+      const y = Math.random() * (settings.imageSize - h);
       ctx.fillRect(x, y, w, h);
     }
   }
